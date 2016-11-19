@@ -8,6 +8,9 @@ import threading
 
 
 ## wrapper class for a queue of packets
+
+
+
 class Interface:
     ## @param maxsize - the maximum size of the queue storing packets
     #  @param cost - of the interface used in routing
@@ -53,30 +56,33 @@ class Interface:
 class NetworkPacket:
     ## packet encoding lengths 
     dst_addr_S_length = 5
-    prot_S_length = 1
+    src_addr_S_length = 5
+    prot_S_length = 1 #protocal string
     
     ##@param dst_addr: address of the destination host
+    # @param src_addr: address of the source host
     # @param data_S: packet payload
     # @param prot_S: upper layer protocol for the packet (data, or control)
-    def __init__(self, dst_addr, prot_S, data_S):
+    def __init__(self, dst_addr, src_addr, prot_S, data_S):
         self.dst_addr = dst_addr
+        self.src_addr = src_addr
         self.data_S = data_S
         self.prot_S = prot_S
-        
+
     ## called when printing the object
     def __str__(self):
         return self.to_byte_S()
         
     ## convert packet to a byte string for transmission over links
     def to_byte_S(self):
-        byte_S = str(self.dst_addr).zfill(self.dst_addr_S_length)
+        byte_S = (str(self.dst_addr) + str(self.src_addr)).zfill(self.dst_addr_S_length + self.src_addr_S_length)
         if self.prot_S == 'data':
             byte_S += '1'
         elif self.prot_S == 'control':
             byte_S += '2'
         else:
             raise('%s: unknown prot_S option: %s' %(self, self.prot_S))
-        byte_S += self.data_S
+        byte_S += (self.data_S)
         return byte_S
     
     ## extract a packet object from a byte string
@@ -84,22 +90,24 @@ class NetworkPacket:
     @classmethod
     def from_byte_S(self, byte_S):
         dst_addr = int(byte_S[0 : NetworkPacket.dst_addr_S_length])
-        prot_S = byte_S[NetworkPacket.dst_addr_S_length : NetworkPacket.dst_addr_S_length + NetworkPacket.prot_S_length]
+        src_addr = (byte_S[NetworkPacket.dst_addr_S_length : NetworkPacket.dst_addr_S_length + NetworkPacket.src_addr_S_length])
+        prot_S = byte_S[NetworkPacket.dst_addr_S_length + NetworkPacket.src_addr_S_length : NetworkPacket.dst_addr_S_length + NetworkPacket.src_addr_S_length + NetworkPacket.prot_S_length]
         if prot_S == '1':
             prot_S = 'data'
         elif prot_S == '2':
             prot_S = 'control'
         else:
             raise('%s: unknown prot_S field: %s' %(self, prot_S))
-        data_S = byte_S[NetworkPacket.dst_addr_S_length + NetworkPacket.prot_S_length : ]        
-        return self(dst_addr, prot_S, data_S)
+        data_S = str(byte_S[NetworkPacket.dst_addr_S_length + NetworkPacket.dst_addr_S_length + NetworkPacket.prot_S_length : ])
+        return self(dst_addr, src_addr, prot_S, data_S)
     
 
     
 
 ## Implements a network host for receiving and transmitting data
 class Host:
-    
+
+
     ##@param addr: address of this node represented as an integer
     def __init__(self, addr):
         self.addr = addr
@@ -114,7 +122,8 @@ class Host:
     # @param dst_addr: destination address for the packet
     # @param data_S: data being transmitted to the network layer
     def udt_send(self, dst_addr, data_S):
-        p = NetworkPacket(dst_addr, 'data', data_S)
+        src_addr = str(self.addr).zfill(5 - len(str(self.addr)));
+        p = NetworkPacket(dst_addr, src_addr, 'data', data_S)
         print('%s: sending packet "%s"' % (self, p))
         self.intf_L[0].put(p.to_byte_S(), 'out') #send packets always enqueued successfully
         
@@ -138,6 +147,7 @@ class Host:
 
 
 ## Implements a multi-interface router described in class
+
 class Router:
     
     ##@param name: friendly router name for debugging
@@ -153,7 +163,8 @@ class Router:
         for cost in intf_cost_L:
             self.intf_L.append(Interface(cost, max_queue_size))
         #set up the routing table for connected hosts
-        self.rt_tbl_D = rt_tbl_D 
+        self.rt_tbl_D = rt_tbl_D
+        #router_List.append(self)
 
     ## called when printing the object
     def __str__(self):
@@ -192,16 +203,36 @@ class Router:
         
     ## forward the packet according to the routing table
     #  @param p Packet containing routing information
+    #  @param i interface that is sending routing information
     def update_routes(self, p, i):
         #TODO: add logic to update the routing tables and
         # possibly send out routing updates
+        table = eval(p.data_S)
+        flag = False;
+        for host in table:
+            for interface in table.get(host):
+                if host in self.rt_tbl_D and not (self.rt_tbl_D[host] is None):
+                    if interface in self.rt_tbl_D.get(host) and not (self.rt_tbl_D[host][interface] is None):
+                        if int(self.rt_tbl_D[host][interface]) > int(table[host][interface]):
+                            flag = True
+                            self.rt_tbl_D[host][interface] =  {host: {i: int(table[host][interface])}}
+                    else:
+                        self.rt_tbl_D[host][interface] =  int(table[host][interface])
+                        flag = True
+                else:
+                    self.rt_tbl_D[host] =  {i: int(table[host][interface])}
+                    flag = True
+
         print('%s: Received routing update %s from interface %d' % (self, p, i))
+        if (flag):
+            self.send_routes(i)
         
-    ## send out route update
+    ## send out route update to nearby routers so they can update their tables
     # @param i Interface number on which to send out a routing update
     def send_routes(self, i):
         # a sample route update packet
-        p = NetworkPacket(0, 'control', 'Sample routing table packet')
+        # p = NetworkPacket(0, 'control', 'Sample routing table packet')
+        p = NetworkPacket(0, self.name, 'control', repr(self.rt_tbl_D))
         try:
             #TODO: add logic to send out a route update
             print('%s: sending routing update "%s" from interface %d' % (self, p, i))
@@ -216,6 +247,30 @@ class Router:
         #TODO: print the routes as a two dimensional table for easy inspection
         # Currently the function just prints the route table as a dictionary
         print(self.rt_tbl_D)
+    #rename this back to print_routes when you get it working
+    def print_route(self):
+        print('%s: routing table' % self)
+        #TODO: print the routes as a two dimensional table for easy inspection
+        # Currently the function just prints the route table as a dictionary
+        # Distance vector algorithm
+        # {2: {1: 3}} # packet to host 2 through interface 1 for cost 3
+        # column index, interface row index, cost
+        i = 0
+        j = 0
+        print("**Row is host,Column is interface** \n\tCost to\n", end='\t'),
+        for interface in range(len(self.rt_tbl_D)):
+            j = j + 1
+            print(j, end='\t')
+            for interface in range(len(self.intf_L)):
+                print('\n')
+                for host in self.rt_tbl_D:
+                    i = i + 1
+                    print(i, end='\t'),
+                    if interface in list(self.rt_tbl_D[host].keys()):
+                        print(self.rt_tbl_D[host][interface], end='\t'),
+                    else:
+                        print("-", end='\t'),
+        print("\n")
         
                 
     ## thread target for the host to keep forwarding data
