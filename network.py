@@ -8,47 +8,6 @@ import threading
 
 
 ## wrapper class for a queue of packets
-
-
-
-class RoutingPacket:
-    ## packet encoding lengths
-    dst_addr_S_length = 5
-    prot_S_length = 1  # protocal string
-
-    ##@param dst_addr: address of the destination host
-    # @param data_S: packet payload
-    def __init__(self, dst_addr, data_S):
-        self.dst_addr = dst_addr
-        self.data_S = data_S
-
-    ## called when printing the object
-    def __str__(self):
-        return self.to_byte_S()
-
-    ## convert packet to a byte string for transmission over links
-    def to_byte_S(self):
-        byte_S = str(self.dst_addr).zfill(self.dst_addr_S_length)
-        byte_S += self.data_S
-        return byte_S
-
-    ## extract a packet object from a byte string
-    # @param byte_S: byte string representation of the packet
-    @classmethod
-    def from_byte_S(self, byte_S):
-        dst_addr = int(byte_S[0: Message.dst_addr_S_length])
-        data_S = byte_S[Message.dst_addr_S_length:]
-        return self(dst_addr, data_S)
-
-    ## extract a packet object from a byte string
-    # @param byte_S: byte string representation of the packet
-    @classmethod
-    def from_byte_S(self, byte_S):
-        dst_addr = int(byte_S[0: NetworkPacket.dst_addr_S_length])
-        prot_S = byte_S[NetworkPacket.dst_addr_S_length: NetworkPacket.dst_addr_S_length + NetworkPacket.prot_S_length]
-        data_S = byte_S[NetworkPacket.dst_addr_S_length + NetworkPacket.prot_S_length:]
-        return self(dst_addr, prot_S, data_S)
-
 class Interface:
     ## @param maxsize - the maximum size of the queue storing packets
     #  @param cost - of the interface used in routing
@@ -94,7 +53,7 @@ class Interface:
 class NetworkPacket:
     ## packet encoding lengths 
     dst_addr_S_length = 5
-    prot_S_length = 1 #protocal string
+    prot_S_length = 1
     
     ##@param dst_addr: address of the destination host
     # @param data_S: packet payload
@@ -103,7 +62,7 @@ class NetworkPacket:
         self.dst_addr = dst_addr
         self.data_S = data_S
         self.prot_S = prot_S
-
+        
     ## called when printing the object
     def __str__(self):
         return self.to_byte_S()
@@ -179,7 +138,6 @@ class Host:
 
 
 ## Implements a multi-interface router described in class
-
 class Router:
     
     ##@param name: friendly router name for debugging
@@ -195,8 +153,7 @@ class Router:
         for cost in intf_cost_L:
             self.intf_L.append(Interface(cost, max_queue_size))
         #set up the routing table for connected hosts
-        self.rt_tbl_D = rt_tbl_D
-        #router_List.append(self)
+        self.rt_tbl_D = rt_tbl_D 
 
     ## called when printing the object
     def __str__(self):
@@ -258,20 +215,7 @@ class Router:
         print('%s: routing table' % self)
         #TODO: print the routes as a two dimensional table for easy inspection
         # Currently the function just prints the route table as a dictionary
-        # Distance vector algorithm
-        # {2: {1: 3}} # packet to host 2 through interface 1 for cost 3
-        # column index, interface row index, cost
-
-        hosts = "";
-        interface_rows = "From (I)";
-        length = len(self.rt_tbl_D);
-        for x in self.rt_tbl_D:
-            hosts = hosts + str(x) + " ";
-            #interface_rows = interface_rows + str(self.rt_tbl_D[x]) + " \n"
-        print("\tCost to (Host)\n\t" + hosts +"\n" + interface_rows );
-        #print(str(hosts))
-        #self.intf_L(0)
-
+        print(self.rt_tbl_D)
         
                 
     ## thread target for the host to keep forwarding data
