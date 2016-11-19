@@ -261,17 +261,22 @@ class Router:
         # Distance vector algorithm
         # {2: {1: 3}} # packet to host 2 through interface 1 for cost 3
         # column index, interface row index, cost
-
-        hosts = "";
-        interface_rows = "From (I)";
-        length = len(self.rt_tbl_D);
-        for x in self.rt_tbl_D:
-            hosts = hosts + str(x) + " ";
-            #interface_rows = interface_rows + str(self.rt_tbl_D[x]) + " \n"
-        print("\tCost to (Host)\n\t" + hosts +"\n" + interface_rows );
-        #print(str(hosts))
-        #self.intf_L(0)
-
+        i = 0
+        j = 0
+        print("**Row is host,Column is interface** \n\n", end = '\t'),
+        for interface in range(len(self.rt_tbl_D)):
+            j= j+1
+            print (j, end = '\t')
+        for interface in range(len(self.intf_L)):
+            print('\n')
+            for host in self.rt_tbl_D:
+                i = i+1
+                print (i, end ='\t'),
+                if interface in list(self.rt_tbl_D[host].keys()):
+                        print(self.rt_tbl_D[host][interface], end ='\n'),
+                else:
+                        print("-", end ='\n'),
+    
         
                 
     ## thread target for the host to keep forwarding data
